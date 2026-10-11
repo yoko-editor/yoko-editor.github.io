@@ -220,7 +220,7 @@
   const GH = { owner: "", repo: "", branch: "main", menuPath: "menu.json", imgDir: "menu-img" };
   const onPages = /\.github\.io$/i.test(location.hostname);
   if (!GH.owner && onPages) GH.owner = location.hostname.split(".")[0];
-  if (!GH.repo && onPages) GH.repo = location.pathname.split("/")[1] || location.hostname;
+  if (!GH.repo && onPages) { const seg = location.pathname.split("/")[1] || ""; GH.repo = (seg && !/\./.test(seg)) ? seg : location.hostname; }
   const DEMO = !GH.owner || !GH.repo;
   const TOKEN_KEY = "yoko_gh_token";
 
@@ -425,7 +425,7 @@
 
     async function verify(t) {
       const r = await fetch(apiBase, { headers: { Authorization: "Bearer " + t, Accept: "application/vnd.github+json" } });
-      if (!r.ok) throw new Error("auth");
+      if (!r.ok) throw new Error("auth " + r.status);
       const j = await r.json();
       if (!(j.permissions && j.permissions.push)) throw new Error("perm");
     }
@@ -444,16 +444,32 @@
     return {
       hasToken: () => !!token,
       subscribe(cb) {
+        // קריאה ישירה מ-API של GitHub = עדכון מיידי (ללא המתנה לבנייה מחדש של Pages ולמטמון ה-CDN).
+        // no-cache = בדיקת ETag מול השרת; תשובת 304 לא נספרת במכסת הקריאות. אם ה-API לא זמין (מכסה/רשת) נופלים ל-menu.json מ-Pages.
+        let seq = 0, apiOk = 0;
+        const fromApi = async () => {
+          const r = await fetch(apiBase + "/contents/" + GH.menuPath + "?ref=" + encodeURIComponent(GH.branch), {
+            cache: "no-cache", headers: { Accept: "application/vnd.github.raw+json", "X-GitHub-Api-Version": "2022-11-28" }
+          });
+          if (r.status === 404) return null;
+          if (!r.ok) throw new Error("api " + r.status);
+          return r.json();
+        };
+        const fromPages = async () => {
+          const r = await fetch(GH.menuPath + "?t=" + Date.now(), { cache: "no-store" });
+          if (r.status === 404) return null;
+          if (!r.ok) throw new Error("pages " + r.status);
+          return r.json();
+        };
         const load = async () => {
-          try {
-            const r = await fetch(GH.menuPath + "?t=" + Date.now(), { cache: "no-store" });
-            if (r.status === 404) return cb(null);
-            if (!r.ok) return cb(undefined);
-            cb(await r.json());
-          } catch (e) { cb(undefined); }
+          const my = ++seq;
+          const pages = fromPages().then((m) => { if (my === seq && !apiOk) cb(m); }, () => { if (my === seq && !apiOk) cb(undefined); });
+          try { const m = await fromApi(); apiOk = my; if (my === seq) cb(m); }
+          catch (e) { apiOk = 0; await pages; }
         };
         load();
         document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+        setInterval(() => { if (document.visibilityState === "visible") load(); }, 45000);
         return () => {};
       },
       fetchLatest: () => serial(fetchFile),
@@ -508,7 +524,7 @@
       while (dirty) { dirty = false; await b.save(clone(menu)); }
       cloudMissing = false;
       try { localStorage.setItem("yoko_menu_cache", JSON.stringify(menu)); } catch (e) { /* ignore */ }
-      toast(DEMO ? (msg || "נשמר") : "נשמר. יופיע ללקוחות בעוד כדקה");
+      toast(DEMO ? (msg || "נשמר") : "נשמר. מתעדכן ללקוחות תוך שניות");
     } catch (e) {
       console.warn(e);
       toast("השמירה נכשלה. בדוק חיבור והרשאות");
@@ -1021,7 +1037,7 @@
           const b = await backendReady;
           if (!b) { toast("אין חיבור"); return; }
           try { await b.login(v.token); toast("מחובר"); }
-          catch (e) { console.warn(e); toast(e && e.message === "perm" ? "לטוקן אין הרשאת כתיבה לריפו" : "הטוקן לא תקין"); }
+          catch (e) { console.warn(e); toast(e && e.message === "perm" ? "לטוקן אין הרשאת כתיבה לריפו" : e && e.message === "auth 401" ? "הטוקן לא תקין או פג תוקף" : e && e.message === "auth 404" ? "הטוקן לא רואה את הריפו " + GH.owner + "/" + GH.repo + " (שם ריפו שגוי או שהטוקן לא נוצר לריפו הזה)" : "שגיאת חיבור ל-GitHub (" + (e && e.message) + ")"); }
         })();
       }
     });
