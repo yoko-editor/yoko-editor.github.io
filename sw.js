@@ -8,7 +8,7 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== location.origin) return;
-  const isStatic = /\/img\/[\w.-]+$/.test(url.pathname);
+  const isStatic = /\/dimg-[\w.-]+$/.test(url.pathname);
   if (isStatic) {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
