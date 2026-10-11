@@ -1105,8 +1105,11 @@
     if (b.hasToken && b.hasToken()) { try { await b.login(); return; } catch (e) { console.warn(e); } }
     loginSheet();
   });
-  if (location.hash === "#admin") openAdmin();
-  window.addEventListener("hashchange", () => { if (location.hash === "#admin") openAdmin(); });
+  // מצב ניהול: #admin, ‎?admin, או כשהאפליקציה מותקנת ופועלת כ-PWA (רק המנהל מתקין אותה)
+  const isStandalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const wantsAdmin = () => location.hash === "#admin" || /(^|[?&])admin(=|&|$)/.test(location.search) || isStandalone();
+  if (wantsAdmin()) openAdmin();
+  window.addEventListener("hashchange", () => { if (wantsAdmin()) openAdmin(); });
 </script>
 </body>
 </html>
