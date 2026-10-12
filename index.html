@@ -156,6 +156,12 @@
   .trrow input, .trrow textarea { width: 100%; font: inherit; font-size: 16px; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
   .trrow.miss input, .trrow.miss textarea { border-color: var(--hot); }
   .trrow textarea { min-height: 64px; resize: vertical; }
+  .trbox { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); display: grid; gap: 5px; font-size: 13.5px; line-height: 1.4; }
+  .trline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .trtag { flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; background: var(--tag-bg); color: var(--brand-ink); }
+  .trn { font-weight: 600; }
+  .trd { color: var(--muted); }
+  .trmiss { color: var(--hot); }
   .abar { position: fixed; inset-inline: 0; bottom: 0; z-index: 20; background: #000; color: #fff; display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .abar .tbtn { flex: none; background: #1d231d; border-color: #38423a; color: #fff; }
   .abar .tbtn.add { border-color: var(--brand); color: #9be585; }
@@ -624,6 +630,7 @@
       b.appendChild(v);
     }
     const tg = tagsEl(it); if (tg) b.appendChild(tg);
+    if (editing()) b.appendChild(trBox([it.n, it.d]));
     if (editing()) b.appendChild(itemTools(arr, i, CARD_CFG));
     c.appendChild(b);
     return c;
@@ -634,6 +641,7 @@
     d.appendChild(nameRow(it.n));
     if (it.d) d.appendChild(el("p", "desc", T(it.d)));
     const tg = tagsEl(it); if (tg) d.appendChild(tg);
+    if (editing()) d.appendChild(trBox([it.n, it.d]));
     if (editing()) d.appendChild(itemTools(arr, i, PLAIN_CFG));
     return d;
   }
@@ -666,6 +674,7 @@
     sec.appendChild(h);
     if (s.hidden && editing()) sec.appendChild(hintEl("הקטגוריה מוסתרת מהלקוחות"));
     if (s.note) sec.appendChild(el("p", "note", T(s.note)));
+    if (editing()) sec.appendChild(trBox([s.title, s.note]));
     if (editing()) sec.appendChild(sectionTools(si));
     const f = filtering();
 
@@ -684,6 +693,7 @@
         if (!idxs.length && !editing()) return;
         any = true;
         sec.appendChild(el("h3", null, T(b.sub)));
+        if (editing()) sec.appendChild(trBox([b.sub]));
         if (b.sizes && b.sizes.length) {
           const sz = el("div", "sizes");
           b.sizes.forEach((x) => sz.appendChild(el("span", "size", T(x[0]) + " " + money(x[1]))));
@@ -747,6 +757,7 @@
         const r = el("div", "drow" + (x.hidden || x.soldOut ? " dim" : ""));
         r.appendChild(nameRow(x.n, x.p));
         const tg = tagsEl(x); if (tg) r.appendChild(tg);
+        if (editing()) r.appendChild(trBox([x.n]));
         if (editing()) r.appendChild(itemTools(s.items, i, { price: true }, true));
         dl.appendChild(r);
       });
@@ -803,6 +814,22 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.textContent = ""; }, 2400);
   }
 
+  function trBox(parts) {
+    const box = el("div", "trbox");
+    const srcs = parts.filter((x) => x && String(x).trim()).map((x) => String(x).trim());
+    if (!srcs.length) return box;
+    TR_LANGS.forEach((x) => {
+      const l = x[0], d = (menu.tr && menu.tr[l]) || {};
+      const row = el("div", "trline"); row.dir = l === "ar" ? "rtl" : "ltr"; row.lang = l;
+      row.appendChild(el("b", "trtag", x[1]));
+      srcs.forEach((sr, k) => {
+        const t = d[sr];
+        row.appendChild(t ? el("span", k ? "trd" : "trn", t) : el("span", "trmiss", "חסר תרגום"));
+      });
+      box.appendChild(row);
+    });
+    return box;
+  }
   function applyStatic() {
     const l = cl();
     const meta = LANGS.filter((x) => x[0] === l)[0];
@@ -1062,6 +1089,16 @@
     if (cfg.price) F.p = fText("מחיר (₪)", it.p, { num: true });
     if (!drinkMode) F.d = fArea("תיאור", it.d || "");
     if (!drinkMode) F.t = fTags("תגיות", it.t);
+    const HEB = { en: "אנגלית", ru: "רוסית", ar: "ערבית" };
+    TR_LANGS.forEach((x) => {
+      const l = x[0], dct = (menu.tr && menu.tr[l]) || {};
+      F["n_" + l] = fText("שם ב" + HEB[l], dct[(it.n || "").trim()] || "");
+      F["n_" + l].input.dir = l === "ar" ? "rtl" : "ltr";
+      if (!drinkMode) {
+        F["d_" + l] = fArea("תיאור ב" + HEB[l], dct[(it.d || "").trim()] || "");
+        F["d_" + l].el.querySelector("textarea").dir = l === "ar" ? "rtl" : "ltr";
+      }
+    });
     if (cfg.img) F.img = fImage("תמונה", it.img);
     if (cfg.vs) F.vs = fRows("מחירים לפי אפשרות (לא חובה)", [["אפשרות", "text"], ["מחיר", "num"]], it.vs, "למשל: 3 ירקות לבחירה | 28. אם יש כאן מחירים אפשר להשאיר את המחיר הראשי ריק.");
     F.soldOut = fToggle("אזל זמנית", it.soldOut);
@@ -1069,7 +1106,15 @@
     openSheet(idx >= 0 ? "עריכה" : "הוספה", F, {
       onSave(v) {
         if (!v.n) { toast("חסר שם"); return false; }
+        const trv = {};
+        TR_LANGS.forEach((x) => { trv[x[0]] = { n: v["n_" + x[0]], d: v["d_" + x[0]] }; delete v["n_" + x[0]]; delete v["d_" + x[0]]; });
         const o = cleanItem(Object.assign({}, it, v));
+        menu.tr = menu.tr || {};
+        TR_LANGS.forEach((x) => {
+          const l = x[0]; menu.tr[l] = menu.tr[l] || {};
+          if (o.n && trv[l].n != null) menu.tr[l][o.n.trim()] = trv[l].n.trim();
+          if (!drinkMode && o.d && trv[l].d != null) menu.tr[l][o.d.trim()] = trv[l].d.trim();
+        });
         if (idx >= 0) arr[idx] = o; else arr.push(o);
         commit("נשמר");
       },
