@@ -162,6 +162,8 @@
   .trn { font-weight: 600; }
   .trd { color: var(--muted); }
   .trmiss { color: var(--hot); }
+  body.locked { position: fixed; left: 0; right: 0; width: 100%; overflow: hidden; }
+  .sheet { overscroll-behavior: contain; }
   .abar { position: fixed; inset-inline: 0; bottom: 0; z-index: 20; background: #000; color: #fff; display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .abar .tbtn { flex: none; background: #1d231d; border-color: #38423a; color: #fff; }
   .abar .tbtn.add { border-color: var(--brand); color: #9be585; }
@@ -768,7 +770,7 @@
   }
 
   function render() {
-    const y = window.scrollY;
+    const y = lockY != null ? lockY : window.scrollY;
     const root = $("menu"), chips = $("chips");
     root.style.minHeight = root.offsetHeight + "px";
     root.textContent = ""; chips.textContent = "";
@@ -790,7 +792,7 @@
     if (!shown) root.appendChild(el("p", "empty", filtering() ? ui("none") : ui("empty")));
     document.body.classList.toggle("has-bar", admin);
     root.style.minHeight = "";
-    window.scrollTo({ top: y, behavior: "instant" });
+    if (lockY == null) window.scrollTo({ top: y, behavior: "instant" });
     spy(true);
   }
 
@@ -829,6 +831,24 @@
       box.appendChild(row);
     });
     return box;
+  }
+  const HEBN = { en: "אנגלית", ru: "רוסית", ar: "ערבית" };
+  function addTrFields(F, id, label, src, area) {
+    TR_LANGS.forEach((x) => {
+      const l = x[0], d = (menu.tr && menu.tr[l]) || {};
+      const val = d[String(src || "").trim()] || "";
+      const f = area ? fArea(label + " ב" + HEBN[l], val) : fText(label + " ב" + HEBN[l], val);
+      (area ? f.el.querySelector("textarea") : f.input).dir = l === "ar" ? "rtl" : "ltr";
+      F["tr_" + id + "_" + l] = f;
+    });
+  }
+  function saveTr(v, pairs) {
+    menu.tr = menu.tr || {};
+    TR_LANGS.forEach((x) => {
+      const l = x[0]; menu.tr[l] = menu.tr[l] || {};
+      pairs.forEach((pr) => { const k = "tr_" + pr[0] + "_" + l; if (pr[1] && v[k] != null) menu.tr[l][String(pr[1]).trim()] = String(v[k]).trim(); });
+    });
+    Object.keys(v).forEach((k) => { if (k.indexOf("tr_") === 0) delete v[k]; });
   }
   function applyStatic() {
     const l = cl();
@@ -1041,7 +1061,21 @@
   }
 
   let sheetOpen = null;
-  function closeSheet() { $("sheetRoot").textContent = ""; sheetOpen = null; }
+  let lockY = null;
+  function lockScroll() {
+    if (lockY != null) return;
+    lockY = window.scrollY;
+    document.body.style.top = (-lockY) + "px";
+    document.body.classList.add("locked");
+  }
+  function unlockScroll() {
+    if (lockY == null) return;
+    const y = lockY; lockY = null;
+    document.body.classList.remove("locked");
+    document.body.style.top = "";
+    window.scrollTo({ top: y, behavior: "instant" });
+  }
+  function closeSheet() { $("sheetRoot").textContent = ""; sheetOpen = null; unlockScroll(); }
   // F: { key: field }  ; onSave(values) -> false to keep open
   function openSheet(title, F, o) {
     closeSheet();
@@ -1071,7 +1105,7 @@
     }
     sh.appendChild(act); bd.appendChild(sh);
     bd.addEventListener("click", (e) => { if (e.target === bd) closeSheet(); });
-    $("sheetRoot").appendChild(bd); sheetOpen = bd;
+    $("sheetRoot").appendChild(bd); sheetOpen = bd; lockScroll();
     const first = sh.querySelector("input,textarea"); if (first && o.focus) first.focus();
   }
 
@@ -1128,11 +1162,13 @@
     const long = !!(b.sizesLong && b.sizesLong.length);
     const F = {};
     F.sub = fText("שם תת-קטגוריה", b.sub);
+    addTrFields(F, "sub", "שם תת-קטגוריה", b.sub);
     if (long) F.sizesLong = fRows("מחירים לפי גודל", [["סוג", "text"], ["גדול", "num"], ["קטן", "num"]], b.sizesLong);
     else F.sizes = fRows("מחירים לפי גודל (לא חובה)", [["גודל", "text"], ["מחיר", "num"]], b.sizes);
     openSheet(bi >= 0 ? "עריכת תת-קטגוריה" : "תת-קטגוריה חדשה", F, {
       onSave(v) {
         if (!v.sub) { toast("חסר שם"); return false; }
+        saveTr(v, [["sub", v.sub]]);
         const o = Object.assign({}, b, { sub: v.sub });
         if (long) o.sizesLong = v.sizesLong; else o.sizes = v.sizes;
         if (bi >= 0) s.blocks[bi] = o; else s.blocks.push(o);
@@ -1148,14 +1184,19 @@
     F.title = fText("שם הקטגוריה", s.title);
     F.nav = fText("שם בסרגל הניווט", s.nav, { hint: "שם קצר שמופיע בכפתורים למעלה." });
     F.note = fText("שורת הסבר מתחת לכותרת", s.note || "");
-    if (s.type === "deal") { F.p = fText("מחיר (₪)", s.p, { num: true }); F.d = fArea("תיאור", s.d || ""); F.img = fImage("תמונה", s.img); }
-    if (s.type === "poke") { F.base = fText("בסיס", s.base || ""); F.prices = fRows("מחירים", [["שם", "text"], ["מחיר", "num"]], s.prices); F.img = fImage("תמונה", s.img); F.groups = fGroups("רשימות לבחירה", s.groups); }
+    const navSep = !!(s.nav && s.nav !== s.title);
+    addTrFields(F, "title", "שם הקטגוריה", s.title);
+    if (navSep) addTrFields(F, "nav", "שם בסרגל", s.nav);
+    if (s.note) addTrFields(F, "note", "שורת הסבר", s.note);
+    if (s.type === "deal") { F.p = fText("מחיר (₪)", s.p, { num: true }); F.d = fArea("תיאור", s.d || ""); addTrFields(F, "d", "תיאור", s.d, true); F.img = fImage("תמונה", s.img); }
+    if (s.type === "poke") { F.base = fText("בסיס", s.base || ""); addTrFields(F, "base", "בסיס", s.base); F.prices = fRows("מחירים", [["שם", "text"], ["מחיר", "num"]], s.prices); F.img = fImage("תמונה", s.img); F.groups = fGroups("רשימות לבחירה", s.groups); }
     if (s.type === "table") { F.cols = fRows("כותרות העמודות", [["כותרת", "text"]], (s.cols || []).map((c) => [c]), "לפי הסדר: עמודה ראשונה ואז שנייה."); F.rows = fRows("שורות", [["שם", "text"], ["מחיר עמודה 1", "num"], ["מחיר עמודה 2", "num"]], s.rows); }
     if (s.type === "cards" && s.groups) F.groups = fGroups("רשימות לבחירה", s.groups);
     F.hidden = fToggle("מוסתרת מהלקוחות", s.hidden);
     openSheet("הגדרות קטגוריה", F, {
       onSave(v) {
         if (!v.title) { toast("חסר שם"); return false; }
+        saveTr(v, [["nav", navSep ? v.nav : null], ["title", v.title], ["note", v.note], ["d", v.d], ["base", v.base]]);
         const o = Object.assign({}, s, v);
         if (v.cols) o.cols = v.cols.map((r) => r[0]);
         ["note", "base", "d", "img", "p"].forEach((k) => { if (o[k] == null || o[k] === "") delete o[k]; });
@@ -1172,10 +1213,12 @@
   function addSectionSheet() {
     const F = {};
     F.title = fText("שם הקטגוריה", "");
+    addTrFields(F, "title", "שם הקטגוריה", "");
     F.type = fSelect("סוג", [["cards", "מנות עם תמונה ותיאור"], ["drinks", "רשימת מחירים פשוטה (למשל שתייה)"]], "cards");
     openSheet("קטגוריה חדשה", F, {
       onSave(v) {
         if (!v.title) { toast("חסר שם"); return false; }
+        saveTr(v, [["title", v.title]]);
         menu.sections.push({ id: uid(), title: v.title, nav: v.title, type: v.type, items: [] });
         commit("הקטגוריה נוספה");
         setTimeout(() => { const last = menu.sections[menu.sections.length - 1]; const t = document.getElementById("s-" + last.id); if (t) t.scrollIntoView({ block: "start" }); }, 50);
