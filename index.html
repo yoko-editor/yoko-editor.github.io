@@ -60,6 +60,7 @@
   .logo { display: block; width: 168px; height: auto; margin-inline: auto; }
   .hero { display: block; width: 100%; height: auto; aspect-ratio: 900 / 624; object-fit: cover; margin-top: 20px; }
   .hero-note { background: #000; color: #cfd6cf; font-size: 13px; padding: 8px 16px; text-align: center; }
+  .allergy-note { color: #fff; font-weight: 500; padding-top: 0; padding-bottom: 12px; }
   .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; padding: 14px 16px; background: #fff; color: #111; font-size: 14px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .ico { width: 18px; height: 18px; flex: none; }
@@ -209,6 +210,7 @@
     <img class="logo" id="logo" src="dimg-logo.webp" fetchpriority="high" alt="YOKO Asian Cuisine כשר" width="300" height="389">
     <img class="hero" id="hero" src="dimg-hero.jpg" fetchpriority="high" alt="מבחר מנות מהמטבח של YOKO" width="900" height="624">
     <div class="hero-note" data-ui="note">התמונות להמחשה בלבד</div>
+    <div class="hero-note allergy-note" data-ui="allergy">יש לך אלרגיה או רגישות למזון? נא לפנות לצוות לפני ההזמנה</div>
   </header>
   <div class="legend" aria-label="מקרא">
     <span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#59b645"/><path d="M6.5 12.5l3.8 3.8 7.2-8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-ui="v">צמחוני</span></span>
@@ -367,10 +369,10 @@
   const LANGS = [["he", "עברית", "rtl"], ["en", "English", "ltr"], ["ru", "Русский", "ltr"], ["ar", "العربية", "rtl"]];
   const TR_LANGS = [["en", "English"], ["ru", "Русский"], ["ar", "العربية"]];
   const UI = {
-    he: { v: TAGS.v, vg: TAGS.vg, gf: TAGS.gf, gfo: TAGS.gfo, hot: TAGS.hot, sold: "אזל", only: "הצג רק:", note: "התמונות להמחשה בלבד", foot: "התמונות להמחשה בלבד · כל המחירים בשקלים", none: "אין מנות שמתאימות לסינון. אפשר להסיר אחד המסננים.", empty: "התפריט ריק.", base: "בסיס:", large: "גדול", small: "קטן" },
-    en: { v: "Vegetarian", vg: "Vegan", gf: "Gluten-free", gfo: "Gluten-free option", hot: "Spicy", sold: "Sold out", only: "Show only:", note: "Photos are for illustration only", foot: "Photos are for illustration only · All prices in NIS", none: "No dishes match the filter. Try removing one.", empty: "The menu is empty.", base: "Base:", large: "Large", small: "Small" },
-    ru: { v: "Вегетарианское", vg: "Веганское", gf: "Без глютена", gfo: "Вариант без глютена", hot: "Острое", sold: "Закончилось", only: "Показать только:", note: "Фотографии приведены для иллюстрации", foot: "Фотографии приведены для иллюстрации · Все цены в шекелях", none: "Нет блюд, подходящих под фильтр. Попробуйте убрать один из них.", empty: "Меню пусто.", base: "Основа:", large: "Большая", small: "Маленькая" },
-    ar: { v: "نباتي", vg: "نباتي صرف", gf: "خالٍ من الغلوتين", gfo: "خيار خالٍ من الغلوتين", hot: "حار", sold: "نفدت الكمية", only: "عرض فقط:", note: "الصور للتوضيح فقط", foot: "الصور للتوضيح فقط · جميع الأسعار بالشيكل", none: "لا توجد أطباق مطابقة للتصفية. جرّب إزالة أحد المرشحات.", empty: "القائمة فارغة.", base: "الأساس:", large: "كبير", small: "صغير" }
+    he: { allergy: "יש לך אלרגיה או רגישות למזון? נא לפנות לצוות לפני ההזמנה", v: TAGS.v, vg: TAGS.vg, gf: TAGS.gf, gfo: TAGS.gfo, hot: TAGS.hot, sold: "אזל", only: "הצג רק:", note: "התמונות להמחשה בלבד", foot: "התמונות להמחשה בלבד · כל המחירים בשקלים", none: "אין מנות שמתאימות לסינון. אפשר להסיר אחד המסננים.", empty: "התפריט ריק.", base: "בסיס:", large: "גדול", small: "קטן" },
+    en: { allergy: "Have a food allergy or sensitivity? Please ask our staff before ordering", v: "Vegetarian", vg: "Vegan", gf: "Gluten-free", gfo: "Gluten-free option", hot: "Spicy", sold: "Sold out", only: "Show only:", note: "Photos are for illustration only", foot: "Photos are for illustration only · All prices in NIS", none: "No dishes match the filter. Try removing one.", empty: "The menu is empty.", base: "Base:", large: "Large", small: "Small" },
+    ru: { allergy: "Есть пищевая аллергия или непереносимость? Пожалуйста, спросите у нашего персонала перед заказом", v: "Вегетарианское", vg: "Веганское", gf: "Без глютена", gfo: "Вариант без глютена", hot: "Острое", sold: "Закончилось", only: "Показать только:", note: "Фотографии приведены для иллюстрации", foot: "Фотографии приведены для иллюстрации · Все цены в шекелях", none: "Нет блюд, подходящих под фильтр. Попробуйте убрать один из них.", empty: "Меню пусто.", base: "Основа:", large: "Большая", small: "Маленькая" },
+    ar: { allergy: "هل لديك حساسية أو عدم تحمّل تجاه بعض الأطعمة؟ يُرجى سؤال طاقمنا قبل الطلب", v: "نباتي", vg: "نباتي صرف", gf: "خالٍ من الغلوتين", gfo: "خيار خالٍ من الغلوتين", hot: "حار", sold: "نفدت الكمية", only: "عرض فقط:", note: "الصور للتوضيح فقط", foot: "الصور للتوضيح فقط · جميع الأسعار بالشيكل", none: "لا توجد أطباق مطابقة للتصفية. جرّب إزالة أحد المرشحات.", empty: "القائمة فارغة.", base: "الأساس:", large: "كبير", small: "صغير" }
   };
   let lang = "he";
   try { const sv = localStorage.getItem("yoko_lang"); if (sv && UI[sv]) lang = sv; } catch (e) { /* ignore */ }
