@@ -201,6 +201,22 @@
   #toast { position: fixed; inset-inline: 0; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: flex; justify-content: center; pointer-events: none; }
   #toast span { background: #111; color: #fff; padding: 9px 16px; border-radius: 999px; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+
+.alltext-overlay {position:fixed;inset:0;background:#f6f8f5;z-index:100;overflow:auto;color:#101410;direction:rtl;padding:16px 12px 115px;box-sizing:border-box}
+.alltext-panel {max-width:850px;margin:auto}
+.alltext-panel>input,.alltext-panel>select {display:block;width:100%;box-sizing:border-box;font:inherit;padding:10px;margin:8px 0;min-height:44px}
+.alltext-row {border:1px solid #a8bca2;border-radius:8px;margin:16px 0;padding:12px;min-width:0;background:white}
+.alltext-row legend {font-weight:600;overflow-wrap:anywhere}
+.alltext-row label {display:block;margin:8px 0}
+.alltext-row textarea {display:block;width:100%;box-sizing:border-box;font:inherit;font-size:16px;border:1px solid #aaa;border-radius:5px;padding:8px;min-height:64px}
+.alltext-panel button,.alltext-previewbar button {font:inherit;padding:9px 12px;min-height:44px;border:1px solid #7f9e75;border-radius:6px;background:white;color:#163b0d;cursor:pointer}
+.alltext-actions {position:fixed;bottom:0;left:0;right:0;background:#f6f8f5;border-top:1px solid #aaa;z-index:101;padding:8px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.alltext-actions .hint {flex-basis:100%;margin:0;text-align:center}
+.alltext-actions button {flex:1;max-width:270px;font-size:14px}
+.alltext-previewbar {position:fixed;inset-inline:0;bottom:0;padding:10px;background:#f6f8f5;border-top:2px solid #59b645;z-index:110;display:flex;gap:10px;align-items:center;justify-content:center;direction:rtl;color:#101410}
+body.alltext-preview #abar {display:none!important}
+@media(min-width:700px){.alltext-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.alltext-row button{grid-column:1/-1}}
+
 </style>
 </head>
 <body>
@@ -408,20 +424,77 @@
     });
     return out;
   }
+  // Customer wording overrides. Source keys are immutable when editing display text.
+  const TEXT_LANGS = ['he', 'en', 'ru', 'ar'];
+  const EXTRA_TEXT = {
+    title:{he:'YOKO תפריט',en:'YOKO תפריט',ru:'YOKO תפריט',ar:'YOKO תפריט'},
+    language_he:{he:'עברית',en:'עברית',ru:'עברית',ar:'עברית'},
+    language_en:{he:'English',en:'English',ru:'English',ar:'English'},
+    language_ru:{he:'Русский',en:'Русский',ru:'Русский',ar:'Русский'},
+    language_ar:{he:'العربية',en:'العربية',ru:'العربية',ar:'العربية'},
+    a11y_language:{he:'Language',en:'Language',ru:'Language',ar:'Language'},
+    a11y_legend:{he:'מקרא',en:'מקרא',ru:'מקרא',ar:'מקרא'},
+    a11y_categories:{he:'קטגוריות',en:'קטגוריות',ru:'קטגוריות',ar:'קטגוריות'},
+    a11y_filters:{he:'סינון לפי העדפות',en:'סינון לפי העדפות',ru:'סינון לפי העדפות',ar:'סינון לפי העדפות'},
+    alt_logo:{he:'YOKO Asian Cuisine כשר',en:'YOKO Asian Cuisine כשר',ru:'YOKO Asian Cuisine כשר',ar:'YOKO Asian Cuisine כשר'},
+    alt_hero:{he:'מבחר מנות מהמטבח של YOKO',en:'מבחר מנות מהמטבח של YOKO',ru:'מבחר מנות מהמטבח של YOKO',ar:'מבחר מנות מהמטבח של YOKO'},
+    alt_footer:{he:'YOKO',en:'YOKO',ru:'YOKO',ar:'YOKO'}
+  };
+  const TEXT_GROUPS = {menu:'מנות וקטגוריות',ui:'תוויות, כפתורים והודעות',extra:'כותרת, שפות ונגישות'};
+  const UI_TEXT_NAMES = {allergy:'הודעת אלרגיה',v:'צמחוני',vg:'טבעוני',gf:'ללא גלוטן',gfo:'אפשרות ללא גלוטן',hot:'חריף',sold:'אזל',only:'הצג רק',note:'הערת תמונות',foot:'שורת תחתית',none:'אין התאמה לסינון',empty:'תפריט ריק',base:'בסיס',large:'גדול',small:'קטן'};
+  const EXTRA_TEXT_NAMES = {title:'כותרת הדף בדפדפן',language_he:'כפתור עברית',language_en:'כפתור אנגלית',language_ru:'כפתור רוסית',language_ar:'כפתור ערבית',a11y_language:'נגישות: בחירת שפה',a11y_legend:'נגישות: מקרא',a11y_categories:'נגישות: קטגוריות',a11y_filters:'נגישות: סינון',alt_logo:'תיאור לוגו עליון',alt_hero:'תיאור תמונה ראשית',alt_footer:'תיאור לוגו תחתון'};
+  const textId = (group, key) => group + ':' + key;
+  function textDefaults(group, key, data = menu) {
+    if(group === 'ui') return Object.fromEntries(TEXT_LANGS.map(l => [l, String(UI[l][key] || UI.he[key] || '')]));
+    if(group === 'extra') return EXTRA_TEXT[key];
+    return Object.fromEntries(TEXT_LANGS.map(l => [l, l === 'he' ? key : String((data.tr && data.tr[l] && data.tr[l][key]) || '')]));
+  }
+  function readText(group, key, l, data = menu) {
+    const defaults = textDefaults(group,key,data) || {};
+    const row = data.texts && data.texts[textId(group,key)];
+    const value = row && row[l];
+    if(typeof value === 'string' && value.trim()) return value;
+    if(typeof defaults[l] === 'string' && defaults[l].trim()) return defaults[l];
+    const hebrew = row && row.he;
+    return typeof hebrew === 'string' && hebrew.trim() ? hebrew : String(defaults.he || key);
+  }
+  function allMenuStrings(data = menu) {
+    const seen = new Set(), out=[];
+    const add=v=>{if(typeof v !== 'string')return;v=v.trim();if(!v||seen.has(v))return;seen.add(v);out.push(v)};
+    const item=it=>{add(it.n);add(it.d);(it.vs||[]).forEach(x=>add(x[0]))};
+    (data.sections||[]).forEach(s=>{
+      [s.title,s.nav,s.note,s.d,s.base].forEach(add);
+      (s.groups||[]).forEach(g=>{add(g.h);(g.o||[]).forEach(add);(g.priced||[]).forEach(x=>add(x[0]))});
+      (s.cols||[]).forEach(add);(s.rows||[]).forEach(x=>add(x[0]));(s.prices||[]).forEach(x=>add(x[0]));
+      (s.blocks||[]).forEach(b=>{add(b.sub);(b.sizes||[]).forEach(x=>add(x[0]));(b.sizesLong||[]).forEach(x=>add(x[0]));(b.items||[]).forEach(item)});
+      (s.items||[]).forEach(item);
+    });return out;
+  }
+  function textEntries(data = menu) {
+    return [
+      ...allMenuStrings(data).map(key=>({group:'menu',key,label:key})),
+      ...Object.keys(UI.he).map(key=>({group:'ui',key,label:UI_TEXT_NAMES[key]||key})),
+      ...Object.keys(EXTRA_TEXT).map(key=>({group:'extra',key,label:EXTRA_TEXT_NAMES[key]||key}))
+    ];
+  }
+  function applyCustomerWords(l) {
+    document.title=readText('extra','title',l);
+    const set=(selector,attr,key)=>{const e=document.querySelector(selector);if(e)e.setAttribute(attr,readText('extra',key,l))};
+    set('#langbar','aria-label','a11y_language');set('.legend','aria-label','a11y_legend');set('#chips','aria-label','a11y_categories');set('#filters','aria-label','a11y_filters');
+    set('#logo','alt','alt_logo');set('#hero','alt','alt_hero');set('#logo2','alt','alt_footer');
+    document.querySelectorAll('#langbar [data-l]').forEach(b=>b.textContent=readText('extra','language_'+b.dataset.l,l));
+    // Photos retain untranslated source names in the data, not duplicated word overrides.
+    document.querySelectorAll('main img[alt]').forEach(im=>{const source=im.dataset.textSource||im.alt;im.dataset.textSource=source;im.alt=readText('menu',source,l)});
+  }
+
   let menu = normalize(DEFAULT_MENU);
   let cloudMissing = false;
   let admin = false, preview = false;
   const active = {};
   const editing = () => admin && !preview;
   const cl = () => (editing() ? "he" : lang);
-  const ui = (k) => UI[cl()][k] || UI.he[k];
-  function T(str) {
-    const l = cl();
-    if (l === "he" || str == null) return str;
-    const d = menu.tr && menu.tr[l];
-    const v = d && d[String(str).trim()];
-    return v ? v : str;
-  }
+  const ui = (k) => readText("ui",k,cl());
+  function T(str) { return str == null ? str : readText("menu",String(str).trim(),cl()); }
 
   try {
     const c = localStorage.getItem("yoko_menu_cache");
@@ -555,8 +628,34 @@
     return backend;
   })();
 
+  let textSourceSnapshot = clone(menu);
+  function preserveTextRenames(before, after) {
+    if (!after.texts) return;
+    const visit = (a,b) => {
+      if(!a||!b||typeof a!=="object"||typeof b!=="object")return;
+      if(Array.isArray(a)&&Array.isArray(b)) {
+        // A structural insertion/deletion is not a rename: avoid attaching text to the wrong dish.
+        if(a.length!==b.length)return;
+        a.forEach((v,i)=>visit(v,b[i]));return;
+      }
+      if(a.id&&b.id&&a.id!==b.id)return;
+      for(const k of ["title","nav","note","d","base","n","sub","h"]) {
+        if(typeof a[k]==="string"&&typeof b[k]==="string"&&a[k]!==b[k]) {
+          const oldId=textId("menu",a[k].trim()),newId=textId("menu",b[k].trim());
+          if(after.texts[oldId]&&!after.texts[newId]) {
+            after.texts[newId]=clone(after.texts[oldId]);
+            // The newly entered Hebrew source takes precedence over its old display override.
+            delete after.texts[newId].he;
+          }
+        }
+      }
+      for(const k of ["sections","items","blocks","groups"])if(a[k]&&b[k])visit(a[k],b[k]);
+    };
+    visit(before,after);
+  }
   let saving = 0, dirty = false, running = false;
   async function commit(msg) {
+    preserveTextRenames(textSourceSnapshot,menu);textSourceSnapshot=clone(menu);
     render();
     const b = await backendReady;
     if (!b) { toast("אין חיבור, השינוי לא נשמר"); return; }
@@ -724,7 +823,7 @@
     } else if (s.type === "deal") {
       if (f) return null;
       const d = el("div", "deal");
-      if (imgSrc(s.img)) d.appendChild(photo(s.img, null, T(s.title)));
+      if (imgSrc(s.img)) d.appendChild(photo(s.img, null, s.title));
       const b = el("div"); b.style.flex = "1"; b.style.minWidth = "0";
       b.appendChild(nameRow(s.title, s.p));
       if (s.d) b.appendChild(el("p", null, T(s.d)));
@@ -743,7 +842,7 @@
     } else if (s.type === "poke") {
       if (f) return null;
       const c = el("article", "card"); c.style.marginTop = "14px"; c.style.flexDirection = "column";
-      if (imgSrc(s.img)) { const im = photo(s.img, "ph", T(s.title)); im.style.width = "100%"; im.style.aspectRatio = "16 / 9"; c.appendChild(im); }
+      if (imgSrc(s.img)) { const im = photo(s.img, "ph", s.title); im.style.width = "100%"; im.style.aspectRatio = "16 / 9"; c.appendChild(im); }
       const bd = el("div", "body");
       if (s.base) bd.appendChild(el("p", "desc", ui("base") + " " + T(s.base)));
       const pp = el("div", "poke-prices");
@@ -795,6 +894,7 @@
     document.body.classList.toggle("has-bar", admin);
     root.style.minHeight = "";
     if (lockY == null) window.scrollTo({ top: y, behavior: "instant" });
+    applyCustomerWords(cl());
     spy(true);
   }
 
@@ -827,7 +927,8 @@
       const row = el("div", "trline"); row.dir = l === "ar" ? "rtl" : "ltr"; row.lang = l;
       row.appendChild(el("b", "trtag", x[1]));
       srcs.forEach((sr, k) => {
-        const t = d[sr];
+        const custom = menu.texts && menu.texts[textId("menu",sr)];
+        const t = custom && custom[l] || d[sr];
         row.appendChild(t ? el("span", k ? "trd" : "trn", t) : el("span", "trmiss", "חסר תרגום"));
       });
       box.appendChild(row);
@@ -1121,17 +1222,17 @@
   function itemSheet(arr, idx, cfg, drinkMode) {
     const it = idx >= 0 ? arr[idx] : { n: "" };
     const F = {};
-    F.n = fText("שם", it.n);
+    F.n = fText("שם", readText("menu",String(it.n||"").trim(),"he"));
     if (cfg.price) F.p = fText("מחיר (₪)", it.p, { num: true });
-    if (!drinkMode) F.d = fArea("תיאור", it.d || "");
+    if (!drinkMode) F.d = fArea("תיאור", it.d ? readText("menu",String(it.d).trim(),"he") : "");
     if (!drinkMode) F.t = fTags("תגיות", it.t);
     const HEB = { en: "אנגלית", ru: "רוסית", ar: "ערבית" };
     TR_LANGS.forEach((x) => {
       const l = x[0], dct = (menu.tr && menu.tr[l]) || {};
-      F["n_" + l] = fText("שם ב" + HEB[l], dct[(it.n || "").trim()] || "");
+      F["n_" + l] = fText("שם ב" + HEB[l], (menu.texts && menu.texts[textId("menu",(it.n||"").trim())] || {})[l] || dct[(it.n || "").trim()] || "");
       F["n_" + l].input.dir = l === "ar" ? "rtl" : "ltr";
       if (!drinkMode) {
-        F["d_" + l] = fArea("תיאור ב" + HEB[l], dct[(it.d || "").trim()] || "");
+        F["d_" + l] = fArea("תיאור ב" + HEB[l], (menu.texts && menu.texts[textId("menu",(it.d||"").trim())] || {})[l] || dct[(it.d || "").trim()] || "");
         F["d_" + l].el.querySelector("textarea").dir = l === "ar" ? "rtl" : "ltr";
       }
     });
@@ -1145,11 +1246,17 @@
         const trv = {};
         TR_LANGS.forEach((x) => { trv[x[0]] = { n: v["n_" + x[0]], d: v["d_" + x[0]] }; delete v["n_" + x[0]]; delete v["d_" + x[0]]; });
         const o = cleanItem(Object.assign({}, it, v));
+        if (menu.texts) ["n","d"].forEach(k => {
+          if(it[k] && o[k] && it[k]!==o[k]) {
+            const oldKey=textId("menu",String(it[k]).trim()),newKey=textId("menu",String(o[k]).trim());
+            if(menu.texts[oldKey]&&!menu.texts[newKey])menu.texts[newKey]=clone(menu.texts[oldKey]);
+          }
+        });
         menu.tr = menu.tr || {};
         TR_LANGS.forEach((x) => {
           const l = x[0]; menu.tr[l] = menu.tr[l] || {};
-          if (o.n && trv[l].n != null) menu.tr[l][o.n.trim()] = trv[l].n.trim();
-          if (!drinkMode && o.d && trv[l].d != null) menu.tr[l][o.d.trim()] = trv[l].d.trim();
+          if (o.n && trv[l].n != null) { menu.tr[l][o.n.trim()] = trv[l].n.trim(); if(menu.texts && menu.texts[textId("menu",o.n.trim())]) { delete menu.texts[textId("menu",o.n.trim())][l]; delete menu.texts[textId("menu",o.n.trim())].he; } }
+          if (!drinkMode && o.d && trv[l].d != null) { menu.tr[l][o.d.trim()] = trv[l].d.trim(); if(menu.texts && menu.texts[textId("menu",o.d.trim())]) { delete menu.texts[textId("menu",o.d.trim())][l]; delete menu.texts[textId("menu",o.d.trim())].he; } }
         });
         if (idx >= 0) arr[idx] = o; else arr.push(o);
         commit("נשמר");
@@ -1277,12 +1384,66 @@
     bar.appendChild(tbtn(preview ? "חזרה לעריכה" : "תצוגת לקוח", () => { preview = !preview; render(); updateBar(); }));
     if (!preview) {
       bar.appendChild(tbtn("+ קטגוריה", addSectionSheet, "add"));
-      bar.appendChild(tbtn("תרגומים", translationsSheet));
+      bar.appendChild(tbtn("כל הטקסטים", allTextsSheet));
+      bar.appendChild(tbtn("תרגומים", allTextsSheet));
       bar.appendChild(tbtn("גיבוי", () => download("yoko-menu-backup.json", JSON.stringify(menu, null, 1))));
       bar.appendChild(tbtn("שחזור", restoreSheet));
       bar.appendChild(tbtn("איפוס", resetSheet));
     }
     bar.appendChild(tbtn("יציאה", async () => { const b = await backendReady; if (b) b.logout(); }));
+  }
+
+  function allTextsSheet() {
+    const before = menu;
+    let draft = clone(menu), query = '', group = 'all', missingOnly = false;
+    const shell = el('div','alltext-overlay');shell.setAttribute('role','dialog');shell.setAttribute('aria-modal','true');shell.setAttribute('aria-label','כל הטקסטים');
+    const panel=el('div','alltext-panel'),heading=el('h2',null,'כל הטקסטים');panel.appendChild(heading);
+    panel.appendChild(el('p','hint','כל הטקסט ללקוחות בארבע השפות. שינוי חל בכל מקום שבו מופיע אותו מקור. אותיות בתוך תמונות אינן טקסט לעריכה. שדה ריק משתמש בנוסח הקיים; מחירים ותמונות לא משתנים.'));
+    const search=el('input');search.type='search';search.placeholder='חיפוש בכל השפות';search.setAttribute('aria-label','חיפוש בכל הטקסטים');panel.appendChild(search);
+    const select=el('select');select.setAttribute('aria-label','קבוצת טקסטים');[['all','כל הקבוצות'],...Object.entries(TEXT_GROUPS)].forEach(([v,n])=>{const o=el('option',null,n);o.value=v;select.appendChild(o)});panel.appendChild(select);
+    const missButton=el('button',null,'רק חסרי תרגום');missButton.type='button';missButton.setAttribute('aria-pressed','false');panel.appendChild(missButton);
+    const count=el('p','hint'),list=el('div','alltext-list');panel.appendChild(count);panel.appendChild(list);
+    const actions=el('div','alltext-actions'),status=el('div','hint');status.setAttribute('aria-live','polite');actions.appendChild(status);
+    const btn=(label,fn)=>{const b=el('button',null,label);b.type='button';b.addEventListener('click',fn);actions.appendChild(b);return b};
+    let draftDirty=false;
+    const close=()=>{shell.remove();document.body.style.overflow='';};
+    const cancel=()=>{if(draftDirty&&!confirm('לסגור בלי לשמור את שינויי הטקסט?'))return;close()};
+    const edit=(entry,l,value)=>{
+      draft.texts=draft.texts||{};const id=textId(entry.group,entry.key);draft.texts[id]=draft.texts[id]||{};
+      if(value.trim())draft.texts[id][l]=value;else delete draft.texts[id][l];
+      if(!Object.keys(draft.texts[id]).length)delete draft.texts[id];
+      draftDirty=true;status.textContent='שינויים בעותק בלבד, טרם נשמרו';
+    };
+    function paint(){
+      list.textContent='';const q=query.trim().toLocaleLowerCase();
+      const entries=textEntries(draft).filter(e=>(group==='all'||e.group===group)&&(!missingOnly||TEXT_LANGS.some(l=>l!=='he'&&!((draft.texts&&draft.texts[textId(e.group,e.key)]||{})[l]||textDefaults(e.group,e.key,draft)[l]||'').trim()))&&(!q||[e.label,...TEXT_LANGS.map(l=>readText(e.group,e.key,l,draft))].some(v=>v.toLocaleLowerCase().includes(q))));
+      count.textContent=entries.length+' טקסטים';
+      entries.forEach(e=>{
+        const row=el('fieldset','alltext-row');row.dataset.textId=textId(e.group,e.key);row.appendChild(el('legend',null,TEXT_GROUPS[e.group]+' · '+e.label));
+        TEXT_LANGS.forEach(l=>{
+          const label=el('label'),caption=el('span',null,({he:'עברית',en:'English',ru:'Русский',ar:'العربية'})[l]),input=el('textarea');input.rows=2;input.lang=l;input.dir=['he','ar'].includes(l)?'rtl':'ltr';input.dataset.language=l;
+          const defaults=textDefaults(e.group,e.key,draft);input.value=(draft.texts&&draft.texts[textId(e.group,e.key)]||{})[l]||defaults[l]||'';
+          input.placeholder=readText(e.group,e.key,l,draft);input.setAttribute('aria-label',e.label+' - '+caption.textContent);input.addEventListener('input',()=>edit(e,l,input.value));label.append(caption,input);row.appendChild(label);
+        });
+        const reset=el('button',null,'שחזור הנוסח הקיים לטקסט הזה');reset.type='button';reset.addEventListener('click',()=>{if(draft.texts)delete draft.texts[textId(e.group,e.key)];draftDirty=true;paint()});row.appendChild(reset);list.appendChild(row);
+      });
+    }
+    search.addEventListener('input',()=>{query=search.value;paint()});select.addEventListener('change',()=>{group=select.value;paint()});missButton.addEventListener('click',()=>{missingOnly=!missingOnly;missButton.setAttribute('aria-pressed',String(missingOnly));paint()});
+    btn('תצוגה מקדימה בלי שמירה',()=>{
+      const oldMenu=menu,oldAdmin=admin,oldPreview=preview,oldLang=lang;menu=normalize(clone(draft));preview=true;shell.hidden=true;document.body.classList.add('alltext-preview');document.body.style.overflow='';render();updateBar();
+      const back=el('div','alltext-previewbar');back.appendChild(el('span',null,'תצוגה מקדימה בלבד - לא נשמר'));
+      const returnButton=el('button',null,'חזרה לעריכת הטקסטים');returnButton.type='button';returnButton.addEventListener('click',()=>{menu=oldMenu;admin=oldAdmin;preview=oldPreview;lang=oldLang;try{localStorage.setItem('yoko_lang',oldLang)}catch(e){}back.remove();document.body.classList.remove('alltext-preview');shell.hidden=false;document.body.style.overflow='hidden';render();updateBar()});back.appendChild(returnButton);document.body.appendChild(back);
+    });
+    const save=btn('שמירת כל הטקסטים',async()=>{
+      if(!draftDirty){close();return}
+      save.disabled=true;status.textContent='שומר...';
+      // Save only text overrides into the existing menu object; never replace prices/photos.
+      const previous=menu.texts;menu.texts=clone(draft.texts||{});
+      const b=await backendReady;
+      try{if(!b)throw Error('אין חיבור');await b.save(clone(menu));textSourceSnapshot=clone(menu);try{localStorage.setItem('yoko_menu_cache',JSON.stringify(menu));}catch(e){}close();render();toast('הטקסטים נשמרו');}
+      catch(e){if(previous===undefined)delete menu.texts;else menu.texts=previous;status.textContent='השמירה נכשלה. השינויים נשארו כאן לניסיון נוסף.';save.disabled=false;}
+    });
+    btn('ביטול',cancel);panel.appendChild(actions);shell.appendChild(panel);document.body.appendChild(shell);document.body.style.overflow='hidden';paint();search.focus();
   }
 
   // ===== הפעלה =====
@@ -1303,7 +1464,7 @@
     b.subscribe((m) => {
       if (admin || m === undefined) return;
       if (m === null) { cloudMissing = true; } else {
-        cloudMissing = false; menu = normalize(m);
+        cloudMissing = false; menu = normalize(m); textSourceSnapshot=clone(menu);
         try { localStorage.setItem("yoko_menu_cache", JSON.stringify(menu)); } catch (e) { /* ignore */ }
       }
       if (!sheetOpen) render();
@@ -1311,7 +1472,7 @@
     b.onAuth(async (u) => {
       admin = !!u;
       if (admin && b.fetchLatest) {
-        try { const m = await b.fetchLatest(); if (m) { menu = normalize(m); cloudMissing = false; } else cloudMissing = true; }
+        try { const m = await b.fetchLatest(); if (m) { menu = normalize(m); textSourceSnapshot=clone(menu); cloudMissing = false; } else cloudMissing = true; }
         catch (e) { console.warn(e); toast("לא הצלחתי לטעון את התפריט העדכני"); }
       }
       if (!admin) preview = false;

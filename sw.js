@@ -1,5 +1,5 @@
 // Service worker: רשת קודם לדף ולנתונים (לא מציג גרסה ישנה כשיש חיבור); תמונות ברירת המחדל (img/) מהמטמון קודם כי הן לא משתנות.
-const CACHE = "yoko-menu-v2";
+const CACHE = "yoko-menu-v3-alltext";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
