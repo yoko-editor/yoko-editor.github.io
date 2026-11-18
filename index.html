@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!--
   הגדרה חד-פעמית (GitHub Pages)
   1) צור ריפו ציבורי נפרד לתפריט (למשל yoko-menu) והעלה אליו את הקובץ הזה בשם index.html.
@@ -426,6 +427,39 @@ body.alltext-preview #abar {display:none!important}
   }
   // Customer wording overrides. Source keys are immutable when editing display text.
   const TEXT_LANGS = ['he', 'en', 'ru', 'ar'];
+  // ==== translate suggestions via relay (added 2026-11-18) ====
+  const TRANSLATE_RELAY_URL = 'https://menu-translate.kobbar1981.workers.dev/translate';
+  const TRANSLATE_CLIENT_ID = '144313693525-5nb2espfpq8dabepqbds51uvaecp9l5b.apps.googleusercontent.com';
+  let translateIdToken = null;
+  function renderTranslateSignin() {
+    const gwrap = document.getElementById('translate-signin-wrap');
+    if (!gwrap) return;
+    gwrap.textContent = '';
+    if (translateIdToken) { gwrap.appendChild(el('p','hint','מחובר לתרגום אוטומטי באמצעות חשבון Google')); return; }
+    gwrap.appendChild(el('p','hint','כדי לקבל הצעת תרגום: התחבר עם Google. רק החשבון המורשה יכול לתרגם.'));
+    const holder = el('div'); gwrap.appendChild(holder);
+    let tries = 0;
+    const boot = () => {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({ client_id: TRANSLATE_CLIENT_ID, callback: (resp) => { translateIdToken = resp.credential; renderTranslateSignin(); } });
+        google.accounts.id.renderButton(holder, { theme: 'outline', size: 'large', text: 'signin_with', locale: 'he', width: 280 });
+      } else if (tries++ < 40) setTimeout(boot, 250);
+      else gwrap.appendChild(el('p','hint','רכיב ההתחברות לא נטען. בדוק חיבור לרשת.'));
+    };
+    boot();
+  }
+  async function translateSuggest(heText) {
+    const resp = await fetch(TRANSLATE_RELAY_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + translateIdToken },
+      body: JSON.stringify({ text: heText })
+    });
+    if (resp.status === 401 || resp.status === 403) { translateIdToken = null; renderTranslateSignin(); throw new Error('ההתחברות פגה או לא אושרה. התחבר שוב.'); }
+    if (resp.status === 429) throw new Error('הגעת למכסת התרגומים להיום');
+    if (!resp.ok) throw new Error('שירות התרגום לא זמין כרגע');
+    return await resp.json();
+  }
+  // ==== end translate additions ====
   const EXTRA_TEXT = {
     title:{he:'YOKO תפריט',en:'YOKO תפריט',ru:'YOKO תפריט',ar:'YOKO תפריט'},
     language_he:{he:'עברית',en:'עברית',ru:'עברית',ar:'עברית'},
@@ -1401,7 +1435,7 @@ body.alltext-preview #abar {display:none!important}
     panel.appendChild(el('p','hint','כל הטקסט ללקוחות בארבע השפות. שינוי חל בכל מקום שבו מופיע אותו מקור. אותיות בתוך תמונות אינן טקסט לעריכה. שדה ריק משתמש בנוסח הקיים; מחירים ותמונות לא משתנים.'));
     const search=el('input');search.type='search';search.placeholder='חיפוש בכל השפות';search.setAttribute('aria-label','חיפוש בכל הטקסטים');panel.appendChild(search);
     const select=el('select');select.setAttribute('aria-label','קבוצת טקסטים');[['all','כל הקבוצות'],...Object.entries(TEXT_GROUPS)].forEach(([v,n])=>{const o=el('option',null,n);o.value=v;select.appendChild(o)});panel.appendChild(select);
-    const missButton=el('button',null,'רק חסרי תרגום');missButton.type='button';missButton.setAttribute('aria-pressed','false');panel.appendChild(missButton);
+    const missButton=el('button',null,'רק חסרי תרגום');missButton.type='button';missButton.setAttribute('aria-pressed','false');panel.appendChild(missButton);const gwrap=DEMO?null:el('div','translate-signin');if(gwrap){gwrap.id='translate-signin-wrap';panel.appendChild(gwrap);}
     const count=el('p','hint'),list=el('div','alltext-list');panel.appendChild(count);panel.appendChild(list);
     const actions=el('div','alltext-actions'),status=el('div','hint');status.setAttribute('aria-live','polite');actions.appendChild(status);
     const btn=(label,fn)=>{const b=el('button',null,label);b.type='button';b.addEventListener('click',fn);actions.appendChild(b);return b};
@@ -1425,7 +1459,15 @@ body.alltext-preview #abar {display:none!important}
           const defaults=textDefaults(e.group,e.key,draft);input.value=(draft.texts&&draft.texts[textId(e.group,e.key)]||{})[l]||defaults[l]||'';
           input.placeholder=readText(e.group,e.key,l,draft);input.setAttribute('aria-label',e.label+' - '+caption.textContent);input.addEventListener('input',()=>edit(e,l,input.value));label.append(caption,input);row.appendChild(label);
         });
-        const reset=el('button',null,'שחזור הנוסח הקיים לטקסט הזה');reset.type='button';reset.addEventListener('click',()=>{if(draft.texts)delete draft.texts[textId(e.group,e.key)];draftDirty=true;paint()});row.appendChild(reset);list.appendChild(row);
+        const reset=el('button',null,'שחזור הנוסח הקיים לטקסט הזה');reset.type='button';reset.addEventListener('click',()=>{if(draft.texts)delete draft.texts[textId(e.group,e.key)];draftDirty=true;paint()});row.appendChild(reset);
+        const sug=DEMO?null:el('button',null,'הצע תרגום');if(sug){sug.type='button';sug.addEventListener('click',async()=>{
+          if(!translateIdToken){status.textContent='כדי לתרגם צריך להתחבר עם Google למעלה';return}
+          const he=readText(e.group,e.key,'he',draft)||'';if(!he.trim()){status.textContent='אין טקסט עברי לתרגם בשורה הזו';return}
+          sug.disabled=true;status.textContent='מתרגם...';
+          try{const r=await translateSuggest(he);['en','ru','ar'].forEach(l=>{if(r&&r[l])edit(e,l,String(r[l]))});status.textContent=(r&&r.warning)?('שם לב - סתירה אפשרית: '+r.warning+' | התרגום הוצע לעיון בעותק בלבד - לא נשמר'):'התרגום הוצע לעיון בעותק בלבד - לא נשמר';paint();}
+          catch(err){status.textContent=(err&&err.message)||'התרגום נכשל';}
+          finally{sug.disabled=false;}
+        });row.appendChild(sug);}list.appendChild(row);
       });
     }
     search.addEventListener('input',()=>{query=search.value;paint()});select.addEventListener('change',()=>{group=select.value;paint()});missButton.addEventListener('click',()=>{missingOnly=!missingOnly;missButton.setAttribute('aria-pressed',String(missingOnly));paint()});
@@ -1443,7 +1485,7 @@ body.alltext-preview #abar {display:none!important}
       try{if(!b)throw Error('אין חיבור');await b.save(clone(menu));textSourceSnapshot=clone(menu);try{localStorage.setItem('yoko_menu_cache',JSON.stringify(menu));}catch(e){}close();render();toast('הטקסטים נשמרו');}
       catch(e){if(previous===undefined)delete menu.texts;else menu.texts=previous;status.textContent='השמירה נכשלה. השינויים נשארו כאן לניסיון נוסף.';save.disabled=false;}
     });
-    btn('ביטול',cancel);panel.appendChild(actions);shell.appendChild(panel);document.body.appendChild(shell);document.body.style.overflow='hidden';paint();search.focus();
+    btn('ביטול',cancel);panel.appendChild(actions);shell.appendChild(panel);document.body.appendChild(shell);renderTranslateSignin();document.body.style.overflow='hidden';paint();search.focus();
   }
 
   // ===== הפעלה =====
